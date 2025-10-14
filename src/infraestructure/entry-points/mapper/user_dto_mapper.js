@@ -1,5 +1,5 @@
-const UserDTO = require('../dto/user_dto');
-const UserModel = require('../../../domain/model/user_model');
+const UserDTO = require('@infra/entry-points/dto/user_dto');
+const UserModel = require('@domain/model/user_model');
 
 class UserDTOMapper {
 

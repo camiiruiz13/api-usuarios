@@ -5,7 +5,7 @@ Resources:
   ApiUsuariosGetFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: api-usuarios-getUsers
+      FunctionName: api-usuarios-stack-getUsers
       Handler: src/index.getUsers
       Runtime: nodejs18.x
       Role: arn:aws:iam::423889617242:role/lambda-execution-role
@@ -17,18 +17,10 @@ Resources:
       Timeout: 10
     DeletionPolicy: Retain
 
-  ApiUsuariosGetPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref ApiUsuariosGetFunction
-      Action: lambda:InvokeFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/GET/users
-
   ApiUsuariosPostFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: api-usuarios-createUser
+      FunctionName: api-usuarios-stack-createUser
       Handler: src/index.createUser
       Runtime: nodejs18.x
       Role: arn:aws:iam::423889617242:role/lambda-execution-role
@@ -40,36 +32,20 @@ Resources:
       Timeout: 10
     DeletionPolicy: Retain
 
-  ApiUsuariosPostPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref ApiUsuariosPostFunction
-      Action: lambda:InvokeFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/POST/users
-
   ApiUsuariosGetByEmailFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: api-usuarios-getUserByEmail
+      FunctionName: api-usuarios-stack-getUserByEmail
       Handler: src/index.getUserByEmail
       Runtime: nodejs18.x
       Role: arn:aws:iam::423889617242:role/lambda-execution-role
       Code:
         S3Bucket: api-users-bucket-anavargasdev
         S3Key: api-usuarios.zip
-      Description: Función Lambda para obtener usuario por email
+      Description: Función Lambda para obtener usuario por correo electrónico
       MemorySize: 128
       Timeout: 10
     DeletionPolicy: Retain
-
-  ApiUsuariosGetByEmailPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref ApiUsuariosGetByEmailFunction
-      Action: lambda:InvokeFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/GET/users/email
 
   ApiUsuariosRestApi:
     Type: AWS::ApiGateway::RestApi
@@ -84,12 +60,12 @@ Resources:
       ParentId: !GetAtt ApiUsuariosRestApi.RootResourceId
       PathPart: users
 
-  ApiUsuariosEmailResource:
+  ApiUsuariosEmailPathParamResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref ApiUsuariosRestApi
       ParentId: !Ref ApiUsuariosResource
-      PathPart: email
+      PathPart: "{email}"
 
   ApiUsuariosGetMethod:
     Type: AWS::ApiGateway::Method
@@ -119,15 +95,40 @@ Resources:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref ApiUsuariosRestApi
-      ResourceId: !Ref ApiUsuariosEmailResource
+      ResourceId: !Ref ApiUsuariosEmailPathParamResource
       HttpMethod: GET
       AuthorizationType: NONE
       RequestParameters:
-        method.request.querystring.email: false
+        method.request.path.email: true
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiUsuariosGetByEmailFunction.Arn}/invocations
+
+  # Permisos Lambda para API Gateway
+  ApiUsuariosGetPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiUsuariosGetFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/GET/users
+
+  ApiUsuariosPostPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiUsuariosPostFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/POST/users
+
+  ApiUsuariosGetByEmailPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiUsuariosGetByEmailFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/GET/users/*
 
   ApiUsuariosDeployment:
     Type: AWS::ApiGateway::Deployment
@@ -142,4 +143,4 @@ Resources:
 Outputs:
   ApiGatewayInvokeURL:
     Description: URL pública del API Gateway
-    Value: !Sub https://${ApiUsuariosRestApi}.execute-api.${AWS::Region}.amazonaws.com/dev/users
+    Value: !Sub "https://${ApiUsuariosRestApi}.execute-api.${AWS::Region}.amazonaws.com/dev/users/{email}"

@@ -33,6 +33,6 @@ functions:
     description: Obtiene un usuario por correo electrónico # Descripción de la función
     events:
       - http:
-          path: users/email # Ruta del endpoint con parámetro de correo electrónico
+          path: users/{email} # Ruta del endpoint con parámetro de correo electrónico
           method: get # Método HTTP GET
           cors: true # Habilita CORS para este endpoint
