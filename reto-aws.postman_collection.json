@@ -1,0 +1,143 @@
+{
+  "info": {
+    "name": "Reto AWS",
+    "_postman_id": "b73a9b3b-0d15-4c61-9c53-fd8ad2c58a11",
+    "description": "Colección de endpoints del Reto AWS con variable global de token {{reto_aws}}.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Servicio POST - Load Balancer (Punto 3)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identificacion\": \"1012\",\n  \"nombre\": \"Ana\",\n  \"email\": \"ana3@example.com\"\n}"
+        },
+        "url": {
+          "raw": "http://user-alb-756295114.us-east-1.elb.amazonaws.com/users",
+          "protocol": "http",
+          "host": [
+            "user-alb-756295114",
+            "us-east-1",
+            "elb",
+            "amazonaws",
+            "com"
+          ],
+          "path": ["users"]
+        }
+      }
+    },
+    {
+      "name": "Servicio GET - Load Balancer (Punto 3)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://user-alb-756295114.us-east-1.elb.amazonaws.com/users/1010",
+          "protocol": "http",
+          "host": [
+            "user-alb-756295114",
+            "us-east-1",
+            "elb",
+            "amazonaws",
+            "com"
+          ],
+          "path": ["users", "1010"]
+        }
+      }
+    },
+    {
+      "name": "Cognito - Obtener Token",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/x-www-form-urlencoded" },
+          {
+            "key": "Authorization",
+            "value": "Basic NzIzaTM0cTh2aHRjMW51bDdxYzhraDJtbHY6MThwdGJpNTg1Mm1kdDFidmU1cG9zczY1N2JhNXNzdG5wb2Y3NTJwYXYzM2k4Mmc3c2NoOQ=="
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "grant_type", "value": "authorization_code" },
+            { "key": "code", "value": "5d0d82b9-c7db-4cb1-a3f1-9e685f126316" },
+            { "key": "redirect_uri", "value": "http://localhost:3000" }
+          ]
+        },
+        "url": {
+          "raw": "https://us-east-1jvwzq0sle.auth.us-east-1.amazoncognito.com/oauth2/token",
+          "protocol": "https",
+          "host": [
+            "us-east-1jvwzq0sle",
+            "auth",
+            "us-east-1",
+            "amazoncognito",
+            "com"
+          ],
+          "path": ["oauth2", "token"]
+        }
+      }
+    },
+    {
+      "name": "Servicio GET - API Gateway (Punto 4)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{reto_aws}}"
+          }
+        ],
+        "url": {
+          "raw": "https://r8zorlxcl6.execute-api.us-east-1.amazonaws.com/dev/users/100000000000",
+          "protocol": "https",
+          "host": [
+            "r8zorlxcl6",
+            "execute-api",
+            "us-east-1",
+            "amazonaws",
+            "com"
+          ],
+          "path": ["dev", "users", "100000000000"]
+        }
+      }
+    },
+    {
+      "name": "Servicio POST - API Gateway (Punto 4)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{reto_aws}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identificacion\": \"1013\",\n  \"nombre\": \"Ana\",\n  \"email\": \"ana4@example.com\"\n}"
+        },
+        "url": {
+          "raw": "https://r8zorlxcl6.execute-api.us-east-1.amazonaws.com/dev/users",
+          "protocol": "https",
+          "host": [
+            "r8zorlxcl6",
+            "execute-api",
+            "us-east-1",
+            "amazonaws",
+            "com"
+          ],
+          "path": ["dev", "users"]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "reto_aws",
+      "value": "coloca_aquí_tu_token",
+      "type": "string"
+    }
+  ]
+}
