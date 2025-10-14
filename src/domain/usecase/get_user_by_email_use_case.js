@@ -1,4 +1,4 @@
-const UserNotFoundException = require('../exception/user_not_found_exception');
+const UserNotFoundException = require('@domain/exception/user_not_found_exception');
 
 class GetUserByEmailUseCase {
   constructor(userRepository) {

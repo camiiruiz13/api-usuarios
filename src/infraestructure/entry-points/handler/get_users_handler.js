@@ -1,13 +1,14 @@
-const UserDTOMapper = require('../mapper/user_dto_mapper');
-const UserRepositoryInMemory = require('../../driver-adapters/user_repository_in_memory');
-const GetUsersUseCase = require('../../../domain/usecase/get_users_use_case');
-const { SuccessResponse, ErrorResponse } = require('../response/generic_response');
-const NoUsersFoundException = require('../../../domain/exception/no_users_found_exception');
+const UserDTOMapper = require('@infra/entry-points/mapper/user_dto_mapper');
+const UserRepositoryInMemory = require('@driver/user_repository_in_memory');
+const GetAllUsersUseCase = require('@domain/usecase/get_users_use_case');
+const { SuccessResponse, ErrorResponse } = require('@infra/entry-points/response/generic_response');
+const NoUsersFoundException = require('@domain/exception/no_users_found_exception');
+
 
 class GetUsersHandler {
   constructor() {
     this.userRepository = new UserRepositoryInMemory();
-    this.getAllUsersUseCase = new GetUsersUseCase(this.userRepository);
+    this.getAllUsersUseCase = new GetAllUsersUseCase(this.userRepository);
   }
 
   async handler() {

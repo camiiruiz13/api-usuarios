@@ -1,4 +1,4 @@
-const NoUsersFoundException = require('../exception/no_users_found_exception');
+const NoUsersFoundException = require('@domain//exception/no_users_found_exception');
 
 class GetAllUsersUseCase {
   constructor(userRepository) {

@@ -1,4 +1,4 @@
-const EmailAlreadyExistsException = require('../exception/email_already_exists_exception');
+const EmailAlreadyExistsException = require('@domain/exception/email_already_exists_exception');
 
 class CreateUserUseCase {
   constructor(userRepository) {
