@@ -1,0 +1,38 @@
+service: api-usuarios # Nombre lógico del servicio (identifica el proyecto en AWS)
+frameworkVersion: '3' # Versión del framework Serverless utilizada
+
+provider:
+  name: aws # Proveedor de servicios en la nube
+  runtime: nodejs18.x # Entorno de ejecución de las funciones Lambda
+  region: us-east-1 # Región donde se desplegarán los recursos
+  stage: dev # Entorno de despliegue (dev, prod, etc.)
+  deploymentMethod: direct # Método de despliegue directo
+  role: arn:aws:iam::423889617242:role/lambda-execution-role # Rol de IAM para las funciones Lambda
+
+functions:
+  getUsers: # Función Lambda para obtener usuarios
+    handler: src/index.getUsers # Archivo y función que se ejecutan
+    description: Obtiene una lista de usuarios # Descripción de la función
+    events:
+      - http:
+          path: users # Ruta del endpoint
+          method: get # Método HTTP GET
+          cors: true # Habilita CORS para este endpoint
+
+  createUser: # Función Lambda para crear un nuevo usuario
+    handler: src/index.createUser # Archivo y función que se ejecutan
+    description: Crea un nuevo usuario # Descripción de la función
+    events:
+      - http:
+          path: users # Ruta del endpoint
+          method: post # Método HTTP POST
+          cors: true # Habilita CORS para este endpoint
+
+  getUserByEmail: # Función Lambda para obtener un usuario por correo electrónico
+    handler: src/index.getUserByEmail # Archivo y función que se ejecutan
+    description: Obtiene un usuario por correo electrónico # Descripción de la función
+    events:
+      - http:
+          path: users/email # Ruta del endpoint con parámetro de correo electrónico
+          method: get # Método HTTP GET
+          cors: true # Habilita CORS para este endpoint

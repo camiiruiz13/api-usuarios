@@ -1,0 +1,15 @@
+{
+  "name": "api-usuarios",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@vendia/serverless-express": "^4.12.6"
+  }
+}

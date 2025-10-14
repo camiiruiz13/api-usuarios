@@ -1,0 +1,44 @@
+const UserDTOMapper = require('../mapper/user_dto_mapper');
+const UserRepositoryInMemory = require('../../driver-adapters/user_repository_in_memory');
+const GetUsersUseCase = require('../../../domain/usecase/get_users_use_case');
+const { SuccessResponse, ErrorResponse } = require('../response/generic_response');
+const NoUsersFoundException = require('../../../domain/exception/no_users_found_exception');
+
+class GetUsersHandler {
+  constructor() {
+    this.userRepository = new UserRepositoryInMemory();
+    this.getAllUsersUseCase = new GetUsersUseCase(this.userRepository);
+  }
+
+  async handler() {
+    try {
+      const users = await this.getAllUsersUseCase.execute();
+      const usersDTO = users.map(user => UserDTOMapper.toDTO(user));
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify(
+          new SuccessResponse('Usuarios obtenidos correctamente', usersDTO)
+        ),
+      };
+    } catch (error) {
+      if (error instanceof NoUsersFoundException) {
+        return {
+          statusCode: 404,
+          body: JSON.stringify(
+            new ErrorResponse('No se encontraron usuarios', error.message)
+          ),
+        };
+      }
+
+      return {
+        statusCode: 500,
+        body: JSON.stringify(
+          new ErrorResponse('Error al obtener los usuarios', error.message)
+        ),
+      };
+    }
+  }
+}
+
+module.exports = GetUsersHandler;
