@@ -1,38 +1,80 @@
-service: api-usuarios # Nombre lógico del servicio (identifica el proyecto en AWS)
-frameworkVersion: '3' # Versión del framework Serverless utilizada
+service: api-usuarios
+frameworkVersion: '3'
 
 provider:
-  name: aws # Proveedor de servicios en la nube
-  runtime: nodejs18.x # Entorno de ejecución de las funciones Lambda
-  region: us-east-1 # Región donde se desplegarán los recursos
-  stage: dev # Entorno de despliegue (dev, prod, etc.)
-  deploymentMethod: direct # Método de despliegue directo
-  role: arn:aws:iam::423889617242:role/lambda-execution-role # Rol de IAM para las funciones Lambda
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  stage: dev
+  deploymentMethod: direct
+  role: arn:aws:iam::423889617242:role/lambda-execution-role
+  environment:
+    USERS_TABLE: api_usuarios
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:Scan
+            - dynamodb:Query
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource:
+            - arn:aws:dynamodb:us-east-1:423889617242:table/api_usuarios
+            - arn:aws:dynamodb:us-east-1:423889617242:table/api_usuarios/index/EmailIndex
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: arn:aws:logs:us-east-1:423889617242:*
 
 functions:
-  getUsers: # Función Lambda para obtener usuarios
-    handler: src/index.getUsers # Archivo y función que se ejecutan
-    description: Obtiene una lista de usuarios # Descripción de la función
+  getUsers:
+    handler: src/index.getUsers
     events:
       - http:
-          path: users # Ruta del endpoint
-          method: get # Método HTTP GET
-          cors: true # Habilita CORS para este endpoint
+          path: users
+          method: get
+          cors: true
 
-  createUser: # Función Lambda para crear un nuevo usuario
-    handler: src/index.createUser # Archivo y función que se ejecutan
-    description: Crea un nuevo usuario # Descripción de la función
+  createUser:
+    handler: src/index.createUser
     events:
       - http:
-          path: users # Ruta del endpoint
-          method: post # Método HTTP POST
-          cors: true # Habilita CORS para este endpoint
+          path: users
+          method: post
+          cors: true
 
-  getUserByEmail: # Función Lambda para obtener un usuario por correo electrónico
-    handler: src/index.getUserByEmail # Archivo y función que se ejecutan
-    description: Obtiene un usuario por correo electrónico # Descripción de la función
+  getUserByEmail:
+    handler: src/index.getUserByEmail
     events:
       - http:
-          path: users/{email} # Ruta del endpoint con parámetro de correo electrónico
-          method: get # Método HTTP GET
-          cors: true # Habilita CORS para este endpoint
+          path: users/{email}
+          method: get
+          cors: true
+
+resources:
+  Resources:
+    ApiUsuariosTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: api_usuarios
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: email
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: EmailIndex
+            KeySchema:
+              - AttributeName: email
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST

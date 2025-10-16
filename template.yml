@@ -1,57 +1,140 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Plantilla de CloudFormation para desplegar una API de usuarios con Lambda y API Gateway
+Description: "Plantilla CloudFormation para la API de usuarios"
 
 Resources:
+  ###############################################################
+  # 1. Rol IAM con permisos para DynamoDB y Logs
+  ###############################################################
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub api-usuarios-lambda-role-${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaDynamoPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Permisos DynamoDB específicos
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                  - dynamodb:DescribeTable
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cld_api_usuarios
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cld_api_usuarios/index/*
+              # Permisos para logs de CloudWatch
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+
+  ###############################################################
+  # 2. Tabla DynamoDB
+  ###############################################################
+  ApiUsuariosTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: cld_api_usuarios
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: EmailIndex
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      BillingMode: PAY_PER_REQUEST
+    DeletionPolicy: Retain
+
+  ###############################################################
+  # 3. Funciones Lambda
+  ###############################################################
   ApiUsuariosGetFunction:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: api-usuarios-stack-getUsers
-      Handler: src/index.getUsers
+      Handler: index.getUsers
       Runtime: nodejs18.x
-      Role: arn:aws:iam::423889617242:role/lambda-execution-role
+      Role: !GetAtt LambdaExecutionRole.Arn
       Code:
         S3Bucket: api-users-bucket-anavargasdev
         S3Key: api-usuarios.zip
-      Description: Función Lambda para obtener usuarios
+      Description: "Función Lambda para obtener todos los usuarios"
       MemorySize: 128
       Timeout: 10
+      Environment:
+        Variables:
+          USERS_TABLE: cld_api_usuarios
+          NODE_PATH: /var/task/node_modules
     DeletionPolicy: Retain
 
   ApiUsuariosPostFunction:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: api-usuarios-stack-createUser
-      Handler: src/index.createUser
+      Handler: index.createUser
       Runtime: nodejs18.x
-      Role: arn:aws:iam::423889617242:role/lambda-execution-role
+      Role: !GetAtt LambdaExecutionRole.Arn
       Code:
         S3Bucket: api-users-bucket-anavargasdev
         S3Key: api-usuarios.zip
-      Description: Función Lambda para crear usuarios
+      Description: "Función Lambda para crear usuarios"
       MemorySize: 128
       Timeout: 10
+      Environment:
+        Variables:
+          USERS_TABLE: cld_api_usuarios
+          NODE_PATH: /var/task/node_modules
     DeletionPolicy: Retain
 
   ApiUsuariosGetByEmailFunction:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: api-usuarios-stack-getUserByEmail
-      Handler: src/index.getUserByEmail
+      Handler: index.getUserByEmail
       Runtime: nodejs18.x
-      Role: arn:aws:iam::423889617242:role/lambda-execution-role
+      Role: !GetAtt LambdaExecutionRole.Arn
       Code:
         S3Bucket: api-users-bucket-anavargasdev
         S3Key: api-usuarios.zip
-      Description: Función Lambda para obtener usuario por correo electrónico
+      Description: "Función Lambda para obtener usuario por correo electrónico"
       MemorySize: 128
       Timeout: 10
+      Environment:
+        Variables:
+          USERS_TABLE: cld_api_usuarios
+          NODE_PATH: /var/task/node_modules
     DeletionPolicy: Retain
 
+  ###############################################################
+  # 4. API Gateway (Recursos y Métodos)
+  ###############################################################
   ApiUsuariosRestApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
       Name: api-usuarios-rest-api
-      Description: API Gateway para exponer funciones Lambda de usuarios
+      Description: "API Gateway para exponer funciones Lambda de usuarios"
 
   ApiUsuariosResource:
     Type: AWS::ApiGateway::Resource
@@ -105,7 +188,9 @@ Resources:
         IntegrationHttpMethod: POST
         Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiUsuariosGetByEmailFunction.Arn}/invocations
 
-  # Permisos Lambda para API Gateway
+  ###############################################################
+  # 5. Permisos de Invocación Lambda por API Gateway
+  ###############################################################
   ApiUsuariosGetPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -130,17 +215,26 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/GET/users/*
 
+  ###############################################################
+  # 6. Despliegue del API Gateway
+  ###############################################################
   ApiUsuariosDeployment:
     Type: AWS::ApiGateway::Deployment
     Properties:
       RestApiId: !Ref ApiUsuariosRestApi
       StageName: dev
     DependsOn:
+      - ApiUsuariosGetPermission
+      - ApiUsuariosPostPermission
+      - ApiUsuariosGetByEmailPermission
       - ApiUsuariosGetMethod
       - ApiUsuariosPostMethod
       - ApiUsuariosGetByEmailMethod
 
+###############################################################
+# 7. Output con la URL final del API Gateway
+###############################################################
 Outputs:
   ApiGatewayInvokeURL:
-    Description: URL pública del API Gateway
-    Value: !Sub "https://${ApiUsuariosRestApi}.execute-api.${AWS::Region}.amazonaws.com/dev/users/{email}"
+    Description: "URL pública del API Gateway"
+    Value: !Sub "https://${ApiUsuariosRestApi}.execute-api.${AWS::Region}.amazonaws.com/dev/users"

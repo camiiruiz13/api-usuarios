@@ -1,5 +1,5 @@
 const UserDTOMapper = require('@infra/entry-points/mapper/user_dto_mapper');
-const UserRepositoryInMemory = require('@driver/user_repository_in_memory');
+const UserRepositoryDynamoDB = require('@driver/user_repository_dynamodb');
 const GetAllUsersUseCase = require('@domain/usecase/get_users_use_case');
 const { SuccessResponse, ErrorResponse } = require('@infra/entry-points/response/generic_response');
 const NoUsersFoundException = require('@domain/exception/no_users_found_exception');
@@ -7,7 +7,7 @@ const NoUsersFoundException = require('@domain/exception/no_users_found_exceptio
 
 class GetUsersHandler {
   constructor() {
-    this.userRepository = new UserRepositoryInMemory();
+    this.userRepository = new UserRepositoryDynamoDB ();
     this.getAllUsersUseCase = new GetAllUsersUseCase(this.userRepository);
   }
 
