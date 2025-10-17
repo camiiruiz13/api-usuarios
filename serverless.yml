@@ -9,7 +9,7 @@ provider:
   deploymentMethod: direct
 
   environment:
-    USERS_TABLE: cld_api_usuarios
+    USERS_TABLE: api_usuarios
     AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
 
   iam:
@@ -24,8 +24,8 @@ provider:
             - dynamodb:UpdateItem
             - dynamodb:DeleteItem
           Resource:
-            - arn:aws:dynamodb:us-east-1:423889617242:table/cld_api_usuarios
-            - arn:aws:dynamodb:us-east-1:423889617242:table/cld_api_usuarios/index/EmailIndex
+            - arn:aws:dynamodb:us-east-1:423889617242:table/api_usuarios
+            - arn:aws:dynamodb:us-east-1:423889617242:table/api_usuarios/index/EmailIndex
         - Effect: Allow
           Action:
             - logs:CreateLogGroup
@@ -87,7 +87,7 @@ resources:
     ApiUsuariosTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: cld_api_usuarios
+        TableName: api_usuarios
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S
