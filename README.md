@@ -39,3 +39,6 @@ cloudformation:
 
 #comando para probar node si hay alguna falla 
 node -r module-alias/register src/index.js
+
+#version del servelss 
+npm install serverless@3.3.3 --save-dev
