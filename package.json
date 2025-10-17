@@ -11,6 +11,8 @@
   "description": "",
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.910.0",
+    "@aws-sdk/client-sns": "^3.911.0",
+    "@aws-sdk/client-sqs": "^3.911.0",
     "@aws-sdk/lib-dynamodb": "^3.910.0",
     "@vendia/serverless-express": "^4.12.6",
     "module-alias": "^2.2.3",

@@ -7,9 +7,11 @@ provider:
   region: us-east-1
   stage: dev
   deploymentMethod: direct
-  role: arn:aws:iam::423889617242:role/lambda-execution-role
+
   environment:
-    USERS_TABLE: api_usuarios
+    USERS_TABLE: cld_api_usuarios
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+
   iam:
     role:
       statements:
@@ -22,14 +24,25 @@ provider:
             - dynamodb:UpdateItem
             - dynamodb:DeleteItem
           Resource:
-            - arn:aws:dynamodb:us-east-1:423889617242:table/api_usuarios
-            - arn:aws:dynamodb:us-east-1:423889617242:table/api_usuarios/index/EmailIndex
+            - arn:aws:dynamodb:us-east-1:423889617242:table/cld_api_usuarios
+            - arn:aws:dynamodb:us-east-1:423889617242:table/cld_api_usuarios/index/EmailIndex
         - Effect: Allow
           Action:
             - logs:CreateLogGroup
             - logs:CreateLogStream
             - logs:PutLogEvents
           Resource: arn:aws:logs:us-east-1:423889617242:*
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+            - sqs:GetQueueAttributes
+          Resource: !GetAtt UserCreatedQueue.Arn
+        - Effect: Allow
+          Action:
+            - sns:Publish
+          Resource: arn:aws:sns:us-east-1:423889617242:alerts-topic
 
 functions:
   getUsers:
@@ -47,6 +60,8 @@ functions:
           path: users
           method: post
           cors: true
+    environment:
+      QUEUE_URL: !Ref UserCreatedQueue
 
   getUserByEmail:
     handler: src/index.getUserByEmail
@@ -56,12 +71,23 @@ functions:
           method: get
           cors: true
 
+  sendEmail:
+    handler: src/infraestructure/driver-adapters/client/send_email_lambda.handler
+    events:
+      - sqs:
+          arn: !GetAtt UserCreatedQueue.Arn
+    environment:
+      SNS_TOPIC_ARN: arn:aws:sns:us-east-1:423889617242:alerts-topic
+
 resources:
   Resources:
+    ###############################################################
+    # DynamoDB Table
+    ###############################################################
     ApiUsuariosTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: api_usuarios
+        TableName: cld_api_usuarios
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S
@@ -78,3 +104,32 @@ resources:
             Projection:
               ProjectionType: ALL
         BillingMode: PAY_PER_REQUEST
+
+    ###############################################################
+    # Cola SQS
+    ###############################################################
+    UserCreatedQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: api-usuarios-created-queue
+        VisibilityTimeout: 30
+
+    ###############################################################
+    # Política para permitir solo a la Lambda createUser publicar en SQS
+    ###############################################################
+    UserCreatedQueuePolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - Ref: UserCreatedQueue
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: sqs:SendMessage
+              Resource: !GetAtt UserCreatedQueue.Arn
+              Condition:
+                ArnEquals:
+                  aws:SourceArn: !GetAtt CreateUserLambdaFunction.Arn

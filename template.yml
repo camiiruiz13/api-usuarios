@@ -1,14 +1,21 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: "Plantilla CloudFormation para la API de usuarios"
+Description: >
+  API de Usuarios con integración completa: DynamoDB, SQS, SNS, API Gateway y Lambdas Node.js 18.
+
+Parameters:
+  ExistingTopicArn:
+    Type: String
+    Default: arn:aws:sns:us-east-1:423889617242:alerts-topic
 
 Resources:
+
   ###############################################################
-  # 1. Rol IAM con permisos para DynamoDB y Logs
+  # 1. Rol IAM para todas las Lambdas
   ###############################################################
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub api-usuarios-lambda-role-${AWS::StackName}
+      RoleName: !Sub api-usuarios-lambda-role-${AWS::StackName}-${AWS::Region}
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -17,224 +24,261 @@ Resources:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: LambdaDynamoPolicy
+        - PolicyName: LogsAccess
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              # Permisos DynamoDB específicos
-              - Effect: Allow
-                Action:
-                  - dynamodb:PutItem
-                  - dynamodb:GetItem
-                  - dynamodb:UpdateItem
-                  - dynamodb:DeleteItem
-                  - dynamodb:Scan
-                  - dynamodb:Query
-                  - dynamodb:DescribeTable
-                Resource:
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cld_api_usuarios
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cld_api_usuarios/index/*
-              # Permisos para logs de CloudWatch
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+                Resource: arn:aws:logs:us-east-1:*:*
+
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cld_api_usuarios-${AWS::StackName}-${AWS::Region}
+
+        - PolicyName: SQSFullAccessForLambda
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:GetQueueUrl
+                Resource: !GetAtt UserCreatedQueue.Arn
+
+        - PolicyName: SNSPublishAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref ExistingTopicArn
 
   ###############################################################
   # 2. Tabla DynamoDB
   ###############################################################
-  ApiUsuariosTable:
+  UsersTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: cld_api_usuarios
+      TableName: !Sub cld_api_usuarios-${AWS::StackName}-${AWS::Region}
       AttributeDefinitions:
         - AttributeName: id
-          AttributeType: S
-        - AttributeName: email
           AttributeType: S
       KeySchema:
         - AttributeName: id
           KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: EmailIndex
-          KeySchema:
-            - AttributeName: email
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
       BillingMode: PAY_PER_REQUEST
-    DeletionPolicy: Retain
 
   ###############################################################
-  # 3. Funciones Lambda
+  # 3. Cola SQS
+  ###############################################################
+  UserCreatedQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub api-usuarios-created-queue-${AWS::StackName}-${AWS::Region}
+      VisibilityTimeout: 30
+
+  ###############################################################
+  # 4. Lambdas principales
   ###############################################################
   ApiUsuariosGetFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: api-usuarios-stack-getUsers
+      FunctionName: !Sub api-usuarios-stack-getUsers-${AWS::StackName}-${AWS::Region}
       Handler: index.getUsers
       Runtime: nodejs18.x
       Role: !GetAtt LambdaExecutionRole.Arn
       Code:
         S3Bucket: api-users-bucket-anavargasdev
         S3Key: api-usuarios.zip
-      Description: "Función Lambda para obtener todos los usuarios"
-      MemorySize: 128
+      Description: Lambda para obtener todos los usuarios
       Timeout: 10
       Environment:
         Variables:
-          USERS_TABLE: cld_api_usuarios
+          USERS_TABLE: !Sub cld_api_usuarios-${AWS::StackName}-${AWS::Region}
           NODE_PATH: /var/task/node_modules
-    DeletionPolicy: Retain
 
   ApiUsuariosPostFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: api-usuarios-stack-createUser
+      FunctionName: !Sub api-usuarios-stack-createUser-${AWS::StackName}-${AWS::Region}
       Handler: index.createUser
       Runtime: nodejs18.x
       Role: !GetAtt LambdaExecutionRole.Arn
       Code:
         S3Bucket: api-users-bucket-anavargasdev
         S3Key: api-usuarios.zip
-      Description: "Función Lambda para crear usuarios"
-      MemorySize: 128
+      Description: Lambda para crear usuarios y enviar evento a SQS
       Timeout: 10
       Environment:
         Variables:
-          USERS_TABLE: cld_api_usuarios
+          USERS_TABLE: !Sub cld_api_usuarios-${AWS::StackName}-${AWS::Region}
+          QUEUE_URL: !Ref UserCreatedQueue
           NODE_PATH: /var/task/node_modules
-    DeletionPolicy: Retain
 
   ApiUsuariosGetByEmailFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: api-usuarios-stack-getUserByEmail
+      FunctionName: !Sub api-usuarios-stack-getUserByEmail-${AWS::StackName}-${AWS::Region}
       Handler: index.getUserByEmail
       Runtime: nodejs18.x
       Role: !GetAtt LambdaExecutionRole.Arn
       Code:
         S3Bucket: api-users-bucket-anavargasdev
         S3Key: api-usuarios.zip
-      Description: "Función Lambda para obtener usuario por correo electrónico"
-      MemorySize: 128
+      Description: Lambda para obtener un usuario por email
       Timeout: 10
       Environment:
         Variables:
-          USERS_TABLE: cld_api_usuarios
+          USERS_TABLE: !Sub cld_api_usuarios-${AWS::StackName}-${AWS::Region}
           NODE_PATH: /var/task/node_modules
-    DeletionPolicy: Retain
 
   ###############################################################
-  # 4. API Gateway (Recursos y Métodos)
+  # 5. Lambda consumidora (SQS → SNS)
   ###############################################################
-  ApiUsuariosRestApi:
+  SendEmailLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub api-usuarios-stack-sendEmail-${AWS::StackName}-${AWS::Region}
+      Handler: src/infraestructure/driver-adapters/client/send_email_lambda.handler
+      Runtime: nodejs18.x
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        S3Bucket: api-users-bucket-anavargasdev
+        S3Key: api-usuarios.zip
+      Description: Lambda que consume mensajes de SQS y publica en SNS
+      Timeout: 10
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref ExistingTopicArn
+          NODE_PATH: /var/task/node_modules
+
+  ###############################################################
+  # 6. Enlace SQS -> Lambda (EventSourceMapping)
+  ###############################################################
+  SendEmailEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt UserCreatedQueue.Arn
+      FunctionName: !Ref SendEmailLambdaFunction
+      Enabled: true
+
+  ###############################################################
+  # 7. API Gateway (REST)
+  ###############################################################
+  ApiGatewayRestApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
-      Name: api-usuarios-rest-api
-      Description: "API Gateway para exponer funciones Lambda de usuarios"
+      Name: api-usuarios-api
 
-  ApiUsuariosResource:
+  ApiGatewayResourceUsuarios:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref ApiUsuariosRestApi
-      ParentId: !GetAtt ApiUsuariosRestApi.RootResourceId
-      PathPart: users
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: usuarios
+      RestApiId: !Ref ApiGatewayRestApi
 
-  ApiUsuariosEmailPathParamResource:
+  ApiGatewayResourceUsuariosEmail:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref ApiUsuariosRestApi
-      ParentId: !Ref ApiUsuariosResource
+      ParentId: !Ref ApiGatewayResourceUsuarios
       PathPart: "{email}"
+      RestApiId: !Ref ApiGatewayRestApi
 
-  ApiUsuariosGetMethod:
+  ApiGatewayMethodGetUsuarios:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref ApiUsuariosRestApi
-      ResourceId: !Ref ApiUsuariosResource
       HttpMethod: GET
+      ResourceId: !Ref ApiGatewayResourceUsuarios
+      RestApiId: !Ref ApiGatewayRestApi
       AuthorizationType: NONE
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiUsuariosGetFunction.Arn}/invocations
 
-  ApiUsuariosPostMethod:
+  ApiGatewayMethodPostUsuarios:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref ApiUsuariosRestApi
-      ResourceId: !Ref ApiUsuariosResource
       HttpMethod: POST
+      ResourceId: !Ref ApiGatewayResourceUsuarios
+      RestApiId: !Ref ApiGatewayRestApi
       AuthorizationType: NONE
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiUsuariosPostFunction.Arn}/invocations
 
-  ApiUsuariosGetByEmailMethod:
+  ApiGatewayMethodGetByEmail:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref ApiUsuariosRestApi
-      ResourceId: !Ref ApiUsuariosEmailPathParamResource
       HttpMethod: GET
+      ResourceId: !Ref ApiGatewayResourceUsuariosEmail
+      RestApiId: !Ref ApiGatewayRestApi
       AuthorizationType: NONE
-      RequestParameters:
-        method.request.path.email: true
       Integration:
         Type: AWS_PROXY
-        IntegrationHttpMethod: POST
+        IntegrationHttpMethod: GET
         Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiUsuariosGetByEmailFunction.Arn}/invocations
 
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiGatewayMethodGetUsuarios
+      - ApiGatewayMethodPostUsuarios
+      - ApiGatewayMethodGetByEmail
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      StageName: prod
+
   ###############################################################
-  # 5. Permisos de Invocación Lambda por API Gateway
+  # 8. Permisos de invocación desde API Gateway
   ###############################################################
-  ApiUsuariosGetPermission:
+  ApiGatewayInvokePermissionGet:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref ApiUsuariosGetFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/GET/users
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApi}/*/*
 
-  ApiUsuariosPostPermission:
+  ApiGatewayInvokePermissionPost:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref ApiUsuariosPostFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/POST/users
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApi}/*/*
 
-  ApiUsuariosGetByEmailPermission:
+  ApiGatewayInvokePermissionGetByEmail:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref ApiUsuariosGetByEmailFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/GET/users/*
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApi}/*/*
 
   ###############################################################
-  # 6. Despliegue del API Gateway
+  # 9. Outputs
   ###############################################################
-  ApiUsuariosDeployment:
-    Type: AWS::ApiGateway::Deployment
-    Properties:
-      RestApiId: !Ref ApiUsuariosRestApi
-      StageName: dev
-    DependsOn:
-      - ApiUsuariosGetPermission
-      - ApiUsuariosPostPermission
-      - ApiUsuariosGetByEmailPermission
-      - ApiUsuariosGetMethod
-      - ApiUsuariosPostMethod
-      - ApiUsuariosGetByEmailMethod
-
-###############################################################
-# 7. Output con la URL final del API Gateway
-###############################################################
 Outputs:
   ApiGatewayInvokeURL:
-    Description: "URL pública del API Gateway"
-    Value: !Sub "https://${ApiUsuariosRestApi}.execute-api.${AWS::Region}.amazonaws.com/dev/users"
+    Description: URL base del API Gateway desplegado
+    Value: !Sub https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/prod
